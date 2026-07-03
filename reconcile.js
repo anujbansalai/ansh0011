@@ -12,7 +12,8 @@ const path = require('path');
 const { getSessionCookie, nseGet } = require('./lib/nseClient');
 
 const DATA_DIRS = ['data', 'historic_data'];
-const FILENAME_RE = /^cm(\d{2})([A-Z]{3})(\d{4})bhav\.csv(\.zip)?$/;
+const OLD_FORMAT_RE = /^cm(\d{2})([A-Z]{3})(\d{4})bhav\.csv(\.zip)?$/;
+const NEW_FORMAT_RE = /^sec_bhavdata_full_(\d{2})(\d{2})(\d{4})\.csv$/;
 const MONTHS = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
   JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
@@ -24,12 +25,19 @@ function collectLocalDates() {
     const dirPath = path.join(__dirname, dir);
     if (!fs.existsSync(dirPath)) continue;
     for (const file of fs.readdirSync(dirPath)) {
-      const m = file.match(FILENAME_RE);
-      if (!m) continue;
-      const [, dd, mmm, yyyy] = m;
-      const month = MONTHS[mmm];
-      if (month === undefined) continue;
-      dates.add(`${yyyy}-${String(month + 1).padStart(2, '0')}-${dd}`);
+      let m = file.match(OLD_FORMAT_RE);
+      if (m) {
+        const [, dd, mmm, yyyy] = m;
+        const month = MONTHS[mmm];
+        if (month === undefined) continue;
+        dates.add(`${yyyy}-${String(month + 1).padStart(2, '0')}-${dd}`);
+        continue;
+      }
+      m = file.match(NEW_FORMAT_RE);
+      if (m) {
+        const [, dd, mm, yyyy] = m;
+        dates.add(`${yyyy}-${mm}-${dd}`);
+      }
     }
   }
   return dates;

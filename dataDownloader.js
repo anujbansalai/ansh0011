@@ -1,16 +1,22 @@
 // dataDownloader.js
-// Fetches the daily NSE Equity Bhavcopy and saves it into ./data
-// Mirrors the approach used by tilak999/NSE-Data-bank so you're not dependent on his repo.
+// Fetches the daily NSE full Bhavcopy (sec_bhavdata_full format) and saves it into ./data
+//
+// NOTE: this replaces an earlier version that targeted the older
+// cmDDMMMYYYYbhav.csv.zip archive path. That format appears to be legacy —
+// tilak999/NSE-Data-bank's actively-updated data/ folder uses
+// sec_bhavdata_full_DDMMYYYY.csv, which matches NSE's current daily feed.
+//
+// Usage:
+//   node dataDownloader.js            -> fetches today's date
+//   node dataDownloader.js 03072026   -> fetches a specific date (DDMMYYYY), for backfill/testing
 
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
 const BASE_URL = 'https://www.nseindia.com';
-const ARCHIVE_URL = 'https://nsearchives.nseindia.com';
+const PRODUCTS_URL = 'https://nsearchives.nseindia.com/products/content';
 
-// Browser-like headers. This is what gets you past the basic bot-check —
-// NSE is checking for a realistic client, not doing deep fingerprinting.
 const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -21,15 +27,12 @@ const HEADERS = {
   Referer: `${BASE_URL}/`,
 };
 
-// Step 1: warm up a session. NSE sets cookies on the homepage that are
-// required for subsequent data requests to succeed.
 async function getSessionCookie() {
   const res = await axios.get(BASE_URL, {
     headers: HEADERS,
     timeout: 15000,
-    validateStatus: () => true, // inspect status ourselves
+    validateStatus: () => true,
   });
-
   const setCookie = res.headers['set-cookie'];
   if (!setCookie) {
     throw new Error(
@@ -41,16 +44,23 @@ async function getSessionCookie() {
 
 function formatDate(date) {
   const dd = String(date.getDate()).padStart(2, '0');
-  const mmm = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
   const yyyy = date.getFullYear();
-  return { dd, mmm, yyyy };
+  return { dd, mm, yyyy };
 }
 
-// Step 2: use the session cookie to fetch the actual file.
+function parseDateArg(arg) {
+  // arg format: DDMMYYYY
+  const dd = arg.slice(0, 2);
+  const mm = arg.slice(2, 4);
+  const yyyy = arg.slice(4, 8);
+  return new Date(`${yyyy}-${mm}-${dd}`);
+}
+
 async function downloadBhavcopy(date, cookie, retries = 3) {
-  const { dd, mmm, yyyy } = formatDate(date);
-  const filename = `cm${dd}${mmm}${yyyy}bhav.csv.zip`;
-  const url = `${ARCHIVE_URL}/content/historical/EQUITIES/${yyyy}/${mmm}/${filename}`;
+  const { dd, mm, yyyy } = formatDate(date);
+  const filename = `sec_bhavdata_full_${dd}${mm}${yyyy}.csv`;
+  const url = `${PRODUCTS_URL}/${filename}`;
 
   const outDir = path.join(__dirname, 'data');
   fs.mkdirSync(outDir, { recursive: true });
@@ -72,7 +82,7 @@ async function downloadBhavcopy(date, cookie, retries = 3) {
       }
 
       if (res.status === 404) {
-        console.log(`No file for ${dd}-${mmm}-${yyyy} (likely a holiday/weekend).`);
+        console.log(`No file for ${dd}-${mm}-${yyyy} (likely a holiday/weekend).`);
         return false;
       }
 
@@ -81,7 +91,6 @@ async function downloadBhavcopy(date, cookie, retries = 3) {
       console.warn(`Attempt ${attempt} failed: ${err.code || err.message}`);
     }
 
-    // Backoff before retrying — no need to hammer the server.
     await new Promise((r) => setTimeout(r, attempt * 2000));
   }
 
@@ -92,8 +101,9 @@ async function downloadBhavcopy(date, cookie, retries = 3) {
 (async () => {
   try {
     const cookie = await getSessionCookie();
-    const today = new Date();
-    await downloadBhavcopy(today, cookie);
+    const dateArg = process.argv[2];
+    const targetDate = dateArg ? parseDateArg(dateArg) : new Date();
+    await downloadBhavcopy(targetDate, cookie);
   } catch (err) {
     console.error('Run failed:', err.message);
     process.exitCode = 1;
