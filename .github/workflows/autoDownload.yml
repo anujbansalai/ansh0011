@@ -4,7 +4,12 @@ on:
   schedule:
     # 11:30 UTC = 5:00 PM IST, Mon-Fri
     - cron: '30 11 * * 1-5'
-  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Optional: specific date to fetch, format DDMMYYYY (leave blank for today)'
+        required: false
+        default: ''
 
 permissions:
   contents: write # required so the workflow can commit and push new data
@@ -21,7 +26,7 @@ jobs:
 
       - run: npm install
 
-      - run: node dataDownloader.js
+      - run: node dataDownloader.js ${{ github.event.inputs.date }}
 
       - name: Run holiday reconciliation
         run: node reconcile.js 45
