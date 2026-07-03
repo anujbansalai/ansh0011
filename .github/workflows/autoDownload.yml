@@ -2,8 +2,8 @@ name: GetBhavCopy
 
 on:
   schedule:
-    # 12:30 UTC = 6:00 PM IST, Mon-Fri (after NSE market close + data publish lag)
-    - cron: '30 12 * * 1-5'
+    # 11:30 UTC = 5:00 PM IST, Mon-Fri
+    - cron: '30 11 * * 1-5'
   workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
 
 permissions:
