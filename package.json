@@ -1,0 +1,12 @@
+{
+  "name": "nse-data-mirror",
+  "version": "1.0.0",
+  "description": "Personal daily mirror of NSE Equity Bhavcopy data",
+  "main": "dataDownloader.js",
+  "scripts": {
+    "start": "node dataDownloader.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2"
+  }
+}
