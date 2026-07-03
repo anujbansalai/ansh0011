@@ -6,6 +6,9 @@ on:
     - cron: '30 12 * * 1-5'
   workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
 
+permissions:
+  contents: write # required so the workflow can commit and push new data
+
 jobs:
   download:
     runs-on: ubuntu-latest
