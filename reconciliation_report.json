@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-09-14T16:59:57.068Z",
+  "generated_at": "2026-09-15T15:37:46.697Z",
   "range": {
-    "from": "2026-07-31",
-    "to": "2026-09-14"
+    "from": "2026-08-01",
+    "to": "2026-09-15"
   },
   "expected_trading_days": 32,
   "present": 31,
