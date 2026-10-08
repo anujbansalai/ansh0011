@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-10-07T17:52:33.655Z",
+  "generated_at": "2026-10-08T17:56:03.570Z",
   "range": {
-    "from": "2026-08-23",
-    "to": "2026-10-07"
+    "from": "2026-08-24",
+    "to": "2026-10-08"
   },
-  "expected_trading_days": 33,
-  "present": 33,
+  "expected_trading_days": 34,
+  "present": 34,
   "explained_holidays": [],
   "unexplained_gaps": []
 }
