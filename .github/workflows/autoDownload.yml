@@ -2,40 +2,66 @@ name: GetBhavCopy
 
 on:
   schedule:
-    # 11:30 UTC = 5:00 PM IST, Mon-Fri
-    - cron: '30 11 * * 1-5'
+    # GitHub often starts scheduled runs hours late, so there are three runs a day.
+    # Each one catches up on any trading day from the last 10 weekdays that is still missing.
+    - cron: '41 13 * * 1-5'   # 19:11 IST, after NSE usually publishes
+    - cron: '17 17 * * 1-5'   # 22:47 IST, retry
+    - cron: '23 3 * * 2-6'    # 08:53 IST next morning, final catch-up before the market opens
   workflow_dispatch:
     inputs:
       date:
-        description: 'Optional: specific date to fetch, format DDMMYYYY (leave blank for today)'
+        description: 'Optional: DDMMYYYY, or several separated by commas (e.g. 19112026,20112026). Leave blank to catch up the last 10 weekdays.'
         required: false
         default: ''
 
 permissions:
   contents: write # required so the workflow can commit and push new data
 
+# Never run two downloads at once — parallel runs pushed over each other.
+concurrency:
+  group: getbhavcopy
+  cancel-in-progress: false
+
 jobs:
   download:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
-      - run: npm install
+      - run: npm install --no-audit --no-fund
 
-      - run: node dataDownloader.js ${{ github.event.inputs.date }}
+      - name: Download bhavcopy
+        id: dl
+        run: node dataDownloader.js "${{ github.event.inputs.date }}"
 
-      - name: Run holiday reconciliation
+      - name: Check for missing trading days
+        id: reconcile
+        if: always()
+        continue-on-error: true
         run: node reconcile.js 45
-        continue-on-error: true # don't block the data commit if this step has issues
 
       - name: Commit and push new data
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/ reconciliation_report.json
-          git diff --staged --quiet || git commit -m "Add bhavcopy for $(date +'%Y-%m-%d')"
-          git push
+          if git diff --staged --quiet; then echo "Nothing new to commit."; exit 0; fi
+          SAVED="${{ steps.dl.outputs.saved }}"
+          git commit -m "Add bhavcopy for ${SAVED:-no new sessions} (reconciliation updated)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 10
+          done
+          echo "Push failed after 3 attempts"; exit 1
+
+      - name: Fail the run if trading days are missing
+        if: steps.reconcile.outcome == 'failure'
+        run: |
+          echo "::error::Missing trading days — see reconciliation_report.json"
+          exit 1
