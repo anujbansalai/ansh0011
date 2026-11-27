@@ -2,7 +2,8 @@
 // Downloads NSE's daily full bhavcopy (sec_bhavdata_full_DDMMYYYY.csv) into ./data
 //
 // How it fetches:
-//   NSE publishes these files as plain public downloads on its archive host. The
+//   NSE publishes these files as plain public downloads on its archive hosts
+//   (archives.nseindia.com answers GitHub's servers; nsearchives is the fallback). The
 //   file is requested directly — there is no visit to the nseindia.com homepage,
 //   no session cookie and no browser imitation. (The old version fetched a
 //   homepage cookie first; that homepage now refuses GitHub's servers with HTTP
@@ -26,7 +27,7 @@ const path = require('path');
 const axios = require('axios');
 
 const HOSTS = (process.env.BHAV_HOSTS ||
-  'https://nsearchives.nseindia.com/products/content,https://archives.nseindia.com/products/content')
+  'https://archives.nseindia.com/products/content,https://nsearchives.nseindia.com/products/content')
   .split(',')
   .map((h) => h.trim())
   .filter(Boolean);
@@ -88,7 +89,6 @@ async function fetchOne(date) {
   if (fs.existsSync(outFile) && fs.statSync(outFile).size > 0) return { status: 'exists' };
 
   const errors = [];
-  let notFoundEverywhere = true;
   for (const host of HOSTS) {
     const url = `${host}/${filename}`;
     for (let attempt = 1; attempt <= RETRIES; attempt++) {
@@ -97,14 +97,15 @@ async function fetchOne(date) {
         res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000, validateStatus: () => true });
       } catch (err) {
         errors.push(`${url} attempt ${attempt}: ${err.code || err.message}`);
-        notFoundEverywhere = false;
         if (attempt < RETRIES) await sleep(RETRY_DELAY_MS * attempt);
         continue;
       }
-      if (res.status === 404) break; // not published (yet) on this host — try the next host
+      if (res.status === 404) {
+        // A definite "not there" from NSE: the file isn't published (yet). No need to ask the other host.
+        return { status: 'not_published', detail: errors.length ? `earlier host problems: ${errors.join(' ; ')}` : undefined };
+      }
       if (res.status !== 200) {
         errors.push(`${url} attempt ${attempt}: HTTP ${res.status}`);
-        notFoundEverywhere = false;
         if (attempt < RETRIES) await sleep(RETRY_DELAY_MS * attempt);
         continue;
       }
@@ -115,7 +116,6 @@ async function fetchOne(date) {
       const iDate = header.indexOf('DATE1');
       if (header[0] !== 'SYMBOL' || iDate < 0 || lines.length < 100) {
         errors.push(`${url}: response is not a valid bhavcopy (${lines.length} lines, header "${lines[0]?.slice(0, 60)}")`);
-        notFoundEverywhere = false;
         break; // a broken file won't fix itself on retry; try the other host
       }
       const fileDate = (lines[1].split(',')[iDate] || '').trim();
@@ -128,7 +128,6 @@ async function fetchOne(date) {
       return { status: 'saved', detail: `${lines.length - 1} rows from ${new URL(url).host}` };
     }
   }
-  if (notFoundEverywhere && errors.length === 0) return { status: 'not_published' };
   return { status: 'error', detail: errors.join(' ; ') };
 }
 
