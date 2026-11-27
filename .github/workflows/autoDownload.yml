@@ -61,7 +61,7 @@ jobs:
           echo "Push failed after 3 attempts"; exit 1
 
       - name: Fail the run if trading days are missing
-        if: steps.reconcile.outcome == 'failure'
+        if: always() && steps.reconcile.outcome == 'failure'
         run: |
           echo "::error::Missing trading days — see reconciliation_report.json"
           exit 1
